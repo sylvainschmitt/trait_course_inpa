@@ -1,0 +1,174 @@
+---
+title: "Data Analysis Section 3 - Community assembly on a functional basis"
+author: "Sylvain Schmitt"
+date: last-modified
+format: 
+  html:
+    embed-resources: true
+---
+
+```{r set}
+#| message: false
+#| warning: false
+library(tidyverse)
+library(knitr)
+library(ggfortify)
+options(knitr.kable.NA = "")
+```
+
+Introduction.
+
+# Data
+
+## Community
+
+```{r data_com}
+#| message: false
+#| warning: false
+com <- read_csv("data/DadosComunidade.csv")
+com |> 
+  head() |> 
+  kable()
+```
+
+## Environment
+
+```{r data_env}
+#| message: false
+#| warning: false
+env <- read_csv("data/DadosAmbiente.csv") |> 
+  rename(Parcela = parcela)
+env |> 
+  head() |> 
+  kable()
+```
+
+# Analyses
+
+## PCA
+
+```{r pca_env}
+#| message: false
+#| warning: false
+autoplot(princomp(select(env, -Parcela), 
+                  cor = TRUE), 
+         data = env, alpha = 0.25,
+         loadings.label.size = 6,
+         loadings.label.colour = 'red', loadings.label.vjust = 1.1,
+         loadings.label.repel   = TRUE,
+         loadings = T, loadings.label = T, loadings.colour = 'red') +
+  coord_equal() +
+  geom_hline(aes(yintercept = 0), col = 'black', linetype = "dotted") +
+  geom_vline(aes(xintercept = 0), col = 'black', linetype = "dotted") +
+  theme_bw()
+```
+
+```{r pca_com}
+#| message: false
+#| warning: false
+pca_data <-  na.omit(com)
+autoplot(princomp(select(pca_data, -Numarvore, -Parcela, -GRT_ano, -Height, -Light), 
+                  cor = TRUE), 
+         data = pca_data |> left_join(env), alpha = 0.25,
+         loadings.label.size = 6, col = "hand30",
+         loadings.label.colour = 'red', loadings.label.vjust = 1.1,
+         loadings.label.repel   = TRUE,
+         loadings = T, loadings.label = T, loadings.colour = 'red') +
+  coord_equal() +
+  geom_hline(aes(yintercept = 0), col = 'black', linetype = "dotted") +
+  geom_vline(aes(xintercept = 0), col = 'black', linetype = "dotted") +
+  theme_bw() +
+  scale_color_viridis_c()
+```
+
+## CWM
+
+```{r cwm}
+#| message: false
+#| warning: false
+cwm <- com |> 
+  select(-Numarvore, -GRT_ano, -Height, -Light) |> 
+  group_by(Parcela) |> 
+  summarise_all(mean, na.rm = TRUE)
+cwm |> 
+  head() |> 
+  kable()
+```
+
+```{r cwm_fig}
+#| message: false
+#| warning: false
+#| fig-width: 10
+#| fig-height: 10
+cwm |> 
+  gather(trait, trait_value, -Parcela) |> 
+  left_join(env) |> 
+  gather(env, env_value, -Parcela, -trait, -trait_value) |> 
+  ggplot(aes(env_value, trait_value)) +
+  geom_point() +
+  theme_bw() +
+  facet_grid(trait ~ env, scales = "free") +
+  geom_smooth(method = "lm", se = FALSE) +
+  xlab("") + ylab("") +
+  ggpubr::stat_cor()
+```
+
+## SES
+
+To do.
+
+```{r ses}
+
+```
+
+## Regressions
+
+```{r reg_tab}
+#| message: false
+#| warning: false
+all_reg <- cwm |> 
+  mutate(across(-Parcela, ~ as.numeric(scale(.x)))) |> 
+  gather(trait, trait_value, -Parcela) |> 
+  left_join(env |> 
+              mutate(across(-Parcela, ~ as.numeric(scale(.x))))) |> 
+  group_by(trait) %>% 
+  nest() |> 
+  mutate(
+    model = map(data, ~ lm(trait_value ~ altitude + inclinacao + hand30 + bases_cmolkg + P_mg_kg + Argila + Silte, data = .x))
+  )
+sjPlot::tab_model(all_reg$model, dv.labels = all_reg$trait)
+```
+
+```{r reg_fig}
+#| message: false
+#| warning: false
+all_reg |> 
+  mutate(coefs = map(model, ~broom::tidy(.x, conf.int = TRUE, conf.level = 0.90))) %>% 
+  unnest(coefs) |> 
+  select(-data, -model) |> 
+  filter(term != "(Intercept)") |> 
+  ggplot(aes(x = term, col = term, alpha = (p.value < 0.05))) +
+  geom_point(aes(y = estimate)) +
+  geom_segment(aes(y = estimate - std.error, yend = estimate + std.error)) +
+  geom_segment(aes(y = conf.low, yend = conf.high), linewidth = .1) +
+  facet_wrap(~trait) +
+  theme_bw() +
+  coord_flip() +
+  xlab("") + ylab("")
+```
+
+```{r reg_ex}
+#| message: false
+#| warning: false
+cwm |> 
+  gather(trait, trait_value, -Parcela) |> 
+  left_join(env) |> 
+  gather(env, env_value, -Parcela, -trait, -trait_value) |> 
+  filter(trait == "FTP", env == "bases_cmolkg") |> 
+  ggplot(aes(env_value, trait_value)) +
+  geom_point() +
+  theme_bw() +
+  facet_grid(trait ~ env, scales = "free") +
+  geom_smooth(method = "lm", se = FALSE) +
+  xlab("") + ylab("")
+```
