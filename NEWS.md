@@ -1,1 +1,2 @@
-* trait_course_inpa 0.1.9001: adding 20 plots data to community
+- trait_course_inpa 0.1.9002: adding all community environmental data - lots of results now
+- trait_course_inpa 0.1.9001: adding 20 plots data to community

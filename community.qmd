@@ -37,22 +37,25 @@ The analyses will be based on classical community assembly and functional ecolog
 
 # Data
 
-## Community
-
 The database we will be using consists of 1,658 tree individuals with a DBH of between 1 and 5 cm, sampled from 20 plots measuring 1 x 250 m. In each plot, all individuals were recorded and measured; therefore, the mean value of each functional characteristic for the community does not need to take into account mean values for the species.
 
-> NB: I think it could be useful to use DAP or tree height to calculate community-weighted means by basal area or height, in order to estimate biomass rather than abundance.
+## Community
 
 The "**traits for analysis.xlsx**" table contains data on the functional characteristics of the individuals. Each row in the table represents an individual, with their corresponding measurements. The ‘Plot’ column indicates which plot the individual belongs to. For each individual, the specific leaf area (SLA, in m²/kg), the leaf dry matter content (LDMC, in mg/g), the leaf thickness (LT, in cm), the chlorophyll content (chlorophyll, in Spad units), the piercing force (FTP, in g), individual leaf area (LA, in cm²), total leaf area of the branch (BLA, in cm²), branch wood density (BWD, in g/cm³), branch dry matter content (BDMC), branch xylem proportion (PX), branch core/pit proportion (PP), branch bark thickness (BarkT), the ratio of leaf area to xylem area (AF:AX), and total tree height (height). Light measurements above the canopy were taken for each plant and can be used to derive an average light measurement for the plot.
 
-> NB: if used other traits need to be described as well as taxonomic columns.
+> NB: traits need to be filtered and selected.
+>
+> NB: other traits need to be described as well as taxonomic columns.
+>
+> NB: plot LO6T0500 is badly named plot LO6T500
 
 ```{r data_com}
 #| message: false
 #| warning: false
 com <- readxl::read_xlsx("data/traits for analysis.xlsx") |> 
   mutate(across(SBL:LightTree, as.numeric)) |> 
-  mutate(Plot = gsub("_", "T", Plot))
+  mutate(Plot = gsub("_", "T", Plot)) |> 
+  mutate(Plot = ifelse(Plot == "LO6T500", "LO6T0500", Plot))
 com |> 
   head() |> 
   kable()
@@ -62,13 +65,19 @@ com |>
 
 The "**DadosAmbiente.csv**" table contains data on the environmental characteristics for each plot. For each plot, there is data on altitude (m), vertical distance above the drainage level (HAND30, in m, an indirect measure of soil drainage), slope (in degrees), exchangeable base content (sum of Ca, Mg, K, in cmol/kg), and the percentage of clay, sand and silt.
 
-> NB: Currently we have environmental data only for 15 plots, it would be good to have the twenty plots of the community for more statistical power.
-
 ```{r data_env}
 #| message: false
 #| warning: false
-env <- read_csv("data/DadosAmbiente.csv") |> 
-  rename(Plot = parcela)
+env <- readxl::read_xls("data/plotsducke_ambientes_completo2.xls",
+                        "scores_amb_quasela") |> 
+  select(parcela, classcampo,
+         altitude, Inclinacao, hand30, 
+         bases_cmolkg, P_1_mg_kg,
+         Argila,	Silte,	Areia) |> 
+  rename(Plot = parcela, Habitat = classcampo, 
+         Altitude = altitude, Inclination = Inclinacao,
+         HAND = hand30, Bases = bases_cmolkg, P = P_1_mg_kg,
+         Clay = Argila, Silt = Silte, Sand = Areia)
 env |> 
   head() |> 
   kable()
@@ -85,19 +94,19 @@ Corresponding notions to be introduced in the lecture:
 
 ## Environmental co-variations
 
-First, we examined the co-variations of environmental variables and found that they explained 75% of the variation across the two main axes (among 8 variables):
+First, we examined the co-variations of environmental variables and found that they explained 71% of the variation across the two main axes (among 8 variables):
 
-- the first component opposed plateaus with higher altitudes, higher HAND, flatter terrain, more clay and less sand, and bottom lands with the opposite characteristics;
-- the second component was linked to soil fertility, with variations in phosphorous, bases and silt.
-
-> NB: We could try to include them all or summarise them using principal component analysis (PCA) axes or representative variables, such as HAND and P, to avoid covariation in the regression analysis.
+- the first component opposed plateaus with higher altitudes, higher HAND, more clay and less sand, and bottom lands with the opposite characteristics;
+- the second component was linked to soil fertility, with variations in phosphorous, bases and silt opposed to inclination.
 
 ```{r pca_env}
 #| message: false
 #| warning: false
-autoplot(princomp(select(env, -Plot), 
+#| fig-width: 6
+#| fig-height: 6
+autoplot(princomp(select(env, -Plot, -Habitat), 
                   cor = TRUE), 
-         data = env, alpha = 0.25,
+         data = env, alpha = 0.25, col = "Habitat",
          loadings.label.size = 6,
          loadings.label.colour = 'red', loadings.label.vjust = 1.1,
          loadings.label.repel   = TRUE,
@@ -123,15 +132,14 @@ autoplot(princomp(select(pca_data, -`# arvore`, -Plot,
                          -Height, -LightTree), 
                   cor = TRUE), 
          data = pca_data |> left_join(env), alpha = 0.25,
-         loadings.label.size = 6, col = "hand30",
+         loadings.label.size = 6, col = "Habitat",
          loadings.label.colour = 'red', loadings.label.vjust = 1.1,
          loadings.label.repel   = TRUE,
          loadings = T, loadings.label = T, loadings.colour = 'red') +
   coord_equal() +
   geom_hline(aes(yintercept = 0), col = 'black', linetype = "dotted") +
   geom_vline(aes(xintercept = 0), col = 'black', linetype = "dotted") +
-  theme_bw() +
-  scale_color_viridis_c()
+  theme_bw()
 ```
 
 ## Community Weighted Means (CWM)
@@ -141,8 +149,6 @@ We calculated the community weighted mean trait value per plot for each trait:
 $$CWM_t=\sum_{i=1}^I value_{t,i}$$
 
 where *value~t~*~,*j*~ is the trait value of individual *i* for trait *t*.
-
-> NB: I think it could be useful to use DAP or tree height to calculate community-weighted means by basal area or height, in order to estimate biomass rather than abundance.
 
 ```{r cwm}
 #| message: false
@@ -156,27 +162,15 @@ cwm |>
   kable()
 ```
 
-```{r cwm_fig}
-#| message: false
-#| warning: false
-cwm |> 
-  gather(trait, trait_value, -Plot) |> 
-  ggplot(aes(trait_value)) +
-  geom_histogram() +
-  facet_wrap(~ trait, scales = "free") +
-  theme_bw() +
-  xlab("") + ylab("")
-```
-
 ## Habitats comparisons
 
-Following @schietti2013, we used a HAND value of 18 m to distinguish between bottomlands and plateaus, and then compared the CWM values of the different habitats using a Student's t-test.
+Following @schietti2013, we used a HAND value of 18 m to distinguish between bottomlands and plateaus, and then compared the CWM values of the different habitats using a Student's t-test. We identified the following significant differences between the different habitats:
 
-> NB: Currently we have environmental data only for 15 plots, it would be good to have the twenty plots of the community for more statistical power.
-
-We found only FPs, LD, and leaf thickness (LT) differed significantly among habitats, resulting in lower FPs and LD and thicker leaves in the bottomlands.
-
-> NB: log-transformation might be needed before CWM computation for traits such as SLA (could be made on all traits but we would loose the units).
+- BarkDMC: lower bark dry matter content in bottomlands
+- FPs: lower FPs in bottomlands
+- LD: lower LD in bottomlands
+- LT: higher leaf thickness in bottomlands
+- WD: lower wood density in bottomlands
 
 ```{r student}
 #| message: false
@@ -186,8 +180,8 @@ We found only FPs, LD, and leaf thickness (LT) differed significantly among habi
 cwm |> 
   gather(trait, trait_value, -Plot) |> 
   left_join(env) |> 
-  filter(!is.na(hand30)) |> 
-  ggplot(aes((hand30 > 18), trait_value, fill = (hand30 > 18))) +
+  filter(!is.na(HAND)) |> 
+  ggplot(aes((HAND > 18), trait_value, fill = (HAND > 18))) +
   geom_boxplot() +
   facet_wrap(~ trait, scales = "free_y") +
   theme_bw() +
@@ -200,9 +194,26 @@ cwm |>
 
 ## Linear regressions
 
-Finally, we performed linear regressions for each trait against two environmental variation variables, selected based on the co-variation of environmental variables: height above the nearest drainage (HAND) and phosphorus (P). Due to the small number of plots (15) and the associated lack of statistical power, we observed many non-significant effects (it might be interesting to explore these non-significant expected results). However, we found that LD increased and LT decreased significantly with HAND, as shown in the standard effect size figure, summary tables and biplots depicting linear relationships.
+Finally, we performed linear regressions for each trait against two environmental variation variables, selected based on the co-variation of environmental variables: height above the nearest drainage (HAND) and phosphorus (P). We got 13 significant effects among 12 traits:
 
-> NB: I used a log transformation for the HAND variable due to the expected non-linear relationships (see @schietti2013), but this could be discussed for the other variables. Similarly, the choice of variables could be discussed.
+- BarkD increases with HAND
+- BarkDMC increases with HAND
+- BarkProp increases with phosphorous
+- BLABL decreases with HAND
+- Chl increases with HAND
+- LD increases with HAND
+- LDMC increases with HAND
+- LMF increases with HAND and phosphorous
+- LT decreases with HAND
+- PithProp decreases with HAND
+- WD increases with HAND
+- WDMC increases with HAND
+
+Figures and tables below are showing:
+
+1.  the standard effect sizes for all regressions,
+2.  summary tables for LT and WD (other could be chosen),
+3.  and traits responding to HAND.
 
 ```{r reg_fig}
 #| message: false
@@ -211,12 +222,12 @@ all_reg <- cwm |>
   mutate(across(-Plot, ~ as.numeric(scale(.x)))) |> 
   gather(trait, trait_value, -Plot) |> 
   left_join(env |> 
-              mutate(hand30 = log(hand30)) |> 
-              mutate(across(-Plot, ~ as.numeric(scale(.x))))) |> 
+              mutate(HAND = log(HAND)) |> 
+              mutate(across(Altitude:Sand, ~ as.numeric(scale(.x))))) |> 
   group_by(trait) %>% 
   nest() |> 
   mutate(
-    model = map(data, ~ lm(trait_value ~ hand30 + P_mg_kg, data = .x))
+    model = map(data, ~ lm(trait_value ~ HAND + P, data = .x))
   )
 all_reg |> 
   mutate(coefs = map(model, ~broom::tidy(.x, conf.int = TRUE, conf.level = 0.90))) %>% 
@@ -232,12 +243,13 @@ all_reg |>
   theme_bw() +
   coord_flip() +
   xlab("") + ylab("") +
-  scale_alpha_manual(values = c(0.2, 1))
+  scale_alpha_manual(values = c(0.2, 1)) +
+  theme(legend.position = "bottom")
 ```
 
 ```{r reg_tab}
-sjPlot::tab_model(filter(all_reg, trait %in% c("LD", "LT"))$model, 
-                  dv.labels = filter(all_reg, trait %in% c("LD", "LT"))$trait)
+sjPlot::tab_model(filter(all_reg, trait %in% c("LD", "WD"))$model, 
+                  dv.labels = filter(all_reg, trait %in% c("LD", "WD"))$trait)
 ```
 
 ```{r reg_ex}
@@ -246,17 +258,19 @@ sjPlot::tab_model(filter(all_reg, trait %in% c("LD", "LT"))$model,
 cwm |> 
   gather(trait, trait_value, -Plot) |> 
   left_join(env) |> 
-  gather(env, env_value, -Plot, -trait, -trait_value) |> 
-  filter(trait %in% c("LD", "LT"), env == "hand30") |> 
+  gather(env, env_value, -Plot, -Habitat, -trait, -trait_value) |> 
+  filter(trait %in% c("BarkD", "BarkDMC", "BLABL", "Chl", "LD",
+                      "LDMC", "LMF", "LT", "PithProp", "WD", "WDMC"),
+         env == "HAND") |> 
   ggplot(aes(env_value, trait_value)) +
-  geom_vline(xintercept = 18, col = "darkgrey") +
-  geom_point() +
+  geom_point(aes(col = Habitat)) +
   theme_bw() +
-  facet_grid(trait ~ env, scales = "free") +
+  facet_wrap(~ trait, scales = "free_y") +
   geom_smooth(method = "lm", se = FALSE) +
-  xlab("") + ylab("")
+  ylab("") + xlab("HAND (m)") +
+  theme(legend.position = "bottom")
 ```
 
 # Conclusion
 
-?
+Topography with HAND is a strong driver of trait variations among communities.
