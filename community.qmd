@@ -5,6 +5,8 @@ date: last-modified
 format: 
   html:
     embed-resources: true
+    toc: true
+    toc_flat: true
 bibliography: references.bib
 ---
 
