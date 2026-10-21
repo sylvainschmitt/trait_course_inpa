@@ -1,3 +1,3 @@
 # Trait course at INPA
 
-Quick test of community analyses.
+preparing code and presentation support for trait course at INPA 2026.
