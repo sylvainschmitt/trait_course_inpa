@@ -1,0 +1,200 @@
+---
+title: "Data Analysis Section 5 - Functional traits and ecosystem processes"
+author: "Sylvain Schmitt"
+date: last-modified
+format: 
+  html:
+    embed-resources: true
+    toc: true
+    toc_flat: true
+bibliography: references.bib
+---
+
+```{r set}
+#| message: false
+#| warning: false
+library(tidyverse)
+library(ggfortify)
+library(knitr)
+options(knitr.kable.NA = "")
+```
+
+Functional traits do not only allow plants to respond to their environment (i.e., response traits), but they also affect their environment (i.e., effect traits), by having an impact on ecosystem processes. One of the most studied ecosystem processes is primary productivity, as it has large consequences for biogeochemical cycling of carbon, water and nutrients, provides food to animals, and shapes ecosystem structure.
+
+**How do traits drive productivity?** - Different theories have explained how plants may affect biomass productivity and storage. According to the **biomass ratio hypothesis** of @grime1998, it is the (traits of) the dominant species, that make up most of the biomass, that drive productivity. According to the **niche complementarity hypothesis** it is the diversity (of traits of) species that drive productivity, because different species can exploit resources in complementary ways According to the **green soup hypothesis**, it is not the vegetation quality, but simply the vegetation quantity that drives productivity.
+
+**Community functional properties** – The functional properties of plant communities can be described using different indices. The **Community-Weighted Mean (CWM)** can be calculated for individual traits. It weights the trait values of the species by the basal area of the species in the plot. It indicates the “average” trait value of species in the community and can be used to test the biomass ratio hypothesis. **Functional Diversity (FD)** **indices** are multivariate indices that are calculated for several traits. It indicates the “variation” of trait values in the communities and can be used to test the niche complementarity hypothesis. There are four FD indices that are relatively independent of each other. Their exact meaning will be explained in the methods.
+
+Here you will analyse a dataset on community functional traits, biomass, and biomass productivity of 1-ha plots in 3 tropical forest sites (Bolivia, Brazil, and Mexico).
+
+**Questions**
+
+1.  Is species “richness” a good predictor of the 4 functional diversity indices?
+2.  How do the 3 sites differ in their community-weighted mean functional properties? Can you distinguish “fast” and “slow” forests? You can do ANOVA’s or a PCA. If you do an ANOVA, then focus on 4 CWM variables that you like best.
+3.  What CWM traits or FD indices do best predict forest productivity and biomass stocks of the 1 ha plots?
+4.  What hypothesis (biomass ratio, niche complementarity, green soup) can best explain the standing biomass and productivity of the 1 ha plots?
+
+**Activities**
+
+Make for each question a hypothesis, and a corresponding graph and statistical test to test the hypothesis.
+
+# Data
+
+The data come from @finegan2014, and can be found in the excel sheet "**Traits_ecosystem processes 190715.xlsx**", in which the 1 ha plots are given in rows, and community functional properties and (biomass) productivity are are given in the columns. Data were collected in a Bolivian semi-evergreen forest (1580 mm rainfall per year), a Brazilian moist forest (near Manaus, 2650 mm/y) and a Costa Rican wet forest (3900 mm/y). Biomass was available for 62 plots, biomass productivity for 21 plots.
+
+**Biomass stocks and productivity** - Biomass change was evaluated over ca a 10 year interval. **Above Ground Biomass** (AGB, Mg ha-1) was estimated for each measurement of the plots using allometric equations with stem diameter at breast height (dbh, 1.3 m or measured above buttresses or other stem deformities) as the predictor variable. **AGB increment** (∆AGBtot, in Mg ha-1 yr-1), is the per-plot annual increment of new biomass produced by the growth of all the trees that survived from t0 to t1 and the new recruits.
+
+**Traits** - Seven traits were selected that are important for plant growth and survival, and hence for standing aboveground biomass, biomass productivity and carbon stocks. They were: specific leaf area (SLA, leaf area per unit leaf mass, cm2 g-1), leaf dry matter content (LDMC, leaf dry mass per unit leaf fresh mass, mg g-1), force to tear (Ft, N mm-1; previously called leaf tensile strength), leaf nitrogen concentration (N, leaf nitrogen mass per unit leaf dry mass, mg g-1), leaf phosphorous concentration (P, mg g-1), wood specific gravity (WSG, unitless (= the same as wood density) and maximum potential tree height (Hmax, m).
+
+**Community functional properties** – The species “richness” presented in the datafile is the number of species contributing to 75% of the biomass of the plots (so it is not the total species richness in the plot!). Biomass-weighted CWM trait values were calculated for each trait. Four complementary indices were used to measure functional diversity: **functional richness** (**FRic**, the amount of functional space occupied by a species assemblage); **functional evenness** (**FEve**, the regularity of the distributions of species abundances in that space), **functional divergence** (**FDiv**, species deviance from the centre of gravity of species locations in the functional space measured from the apices of the convex hull [@mason2005; @villéger2008; @mouchet2010], and **functional dispersion** **FDis**, the abundance-weighted mean distance of species from the centroid of the functional space, [@laliberté2010]. In relation to species complementarity and ecosystem processes, each index has a different interpretation. FRic is simply a multivariate analogue of the range of trait values and cannot directly indicate complementarity; as a range analogue it is prone to being affected by extreme values [@laliberté2010]. On the other hand, FEve and FDiv can both be interpreted in terms of niche complementarity: higher values of each indicate greater differentiation in the use of resources in the community [@mason2005; @villéger2008]. All CWM and FD calculations were done using F-Diversity software [@casanoves2010]: [http://www.fdiversity.nucleodiversus.org/)](http://www.fdiversity.nucleodiversus.org/).) .
+
+```{r data}
+#| message: false
+#| warning: false
+data <- readxl::read_xls("data/Traits_ecosystem processes 190715.xls", skip = 8) |> 
+  rename(SR = "Species used to calculate FD indices", Ecosystem = "Ecosystem type") |> 
+  select(-designation)
+data |> 
+  head() |> 
+  kable()
+```
+
+# Analyses
+
+Corresponding notions to be introduced in the lecture:
+
+- Biodiversity and Ecosystem Functioning (BEF)
+- biomass ratio hypothesis
+- niche complementarity hypothesis
+- green soup hypothesis
+- Community-Weighted Mean (CWM)
+- Functional Diversity (FD) indices
+
+## 1 - Species richness and functional diversity indices
+
+Species richness predicts functional richness (\|r\|=0.98) but not other functional diversity indices (\|r\| \< 0.47).
+
+```{r sr_fd_corr}
+data |> 
+  select(SR:Fdis) |> 
+  cor() |> 
+  corrplot::corrplot()
+```
+
+```{r sr_fd_pca}
+#| message: false
+#| warning: false
+autoplot(princomp(select(data, SR:Fdis), 
+                  cor = TRUE), 
+         data = data, alpha = 0.25, col = "Country",
+         loadings.label.size = 6,
+         loadings.label.colour = 'red', loadings.label.vjust = 1.1,
+         loadings.label.repel   = TRUE,
+         loadings = T, loadings.label = T, loadings.colour = 'red') +
+  coord_equal() +
+  geom_hline(aes(yintercept = 0), col = 'black', linetype = "dotted") +
+  geom_vline(aes(xintercept = 0), col = 'black', linetype = "dotted") +
+  theme_bw()
+```
+
+## 2 - Sites community weighted means
+
+> Can you distinguish “fast” and “slow” forests? You can do ANOVA’s or a PCA. If you do an ANOVA, then focus on 4 CWM variables that you like best.
+
+Bolivia and then Costa Rica have more "fast" forests than Brazil with more acquisitive (SLA, P) and less dense (LDMC) leaves with lighter woods (WSG) and higher forests (Hmax).
+
+```{r cwm_anova}
+data |> 
+  select(Country, SLA_cwm:Hmax_cwm) |> 
+  rename_all(~ gsub("_cwm", "", .)) |> 
+  gather(Trait, CWM, -Country) |> 
+  ggplot(aes(Country, CWM, fill = Country)) +
+  geom_boxplot() +
+  facet_wrap(~ Trait, scales = "free_y") +
+  theme_bw() +
+  theme(axis.title = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.position = "bottom") +
+  ggpubr::stat_compare_means(method = "anova",
+                             label.y.npc = "bottom")
+```
+
+```{r cwm_pca}
+#| message: false
+#| warning: false
+autoplot(princomp(select(data, SLA_cwm:Hmax_cwm) |> 
+                    rename_all(~ gsub("_cwm", "", .)), 
+                  cor = TRUE), 
+         data = data, alpha = 0.25, col = "Country",
+         loadings.label.size = 6,
+         loadings.label.colour = 'red', loadings.label.vjust = 1.1,
+         loadings.label.repel   = TRUE,
+         loadings = T, loadings.label = T, loadings.colour = 'red') +
+  coord_equal() +
+  geom_hline(aes(yintercept = 0), col = 'black', linetype = "dotted") +
+  geom_vline(aes(xintercept = 0), col = 'black', linetype = "dotted") +
+  theme_bw()
+```
+
+## 3 Productivity & Biomass vs. CWM & FD indices
+
+> Each relationships to be described.
+
+```{r prod_bio_reg_tab}
+m_bio <- lm(AGBi ~ Country + SLA_cwm + LDMC_cwm + FT_cwm + N_cwm + P_cwm + WSG_cwm + Hmax_cwm + Fric + Feve + Fdiv + Fdis, data) |> step(trace = 0)
+m_prod <- lm(`∆AGB` ~ Country + AGBi + SLA_cwm + LDMC_cwm + FT_cwm + N_cwm + P_cwm + WSG_cwm + Hmax_cwm + Fric + Feve + Fdiv + Fdis, data) |> step(trace = 0)
+sjPlot::tab_model(m_bio, m_prod)
+```
+
+```{r}
+lapply(list(biomass = m_bio, productivity = m_prod), 
+       function(x) broom::tidy(x, conf.int = TRUE, conf.level = 0.90)) |> 
+  bind_rows(.id = "response") |> 
+  filter(!(term %in% c("(Intercept)", "CountryCosta Rica", "CountryBrazil"))) |> 
+  ggplot(aes(x = term, col = term, alpha = (p.value < 0.05))) +
+  geom_hline(yintercept = 0, col = "darkgrey") +
+  geom_point(aes(y = estimate)) +
+  geom_segment(aes(y = estimate - std.error, yend = estimate + std.error)) +
+  geom_segment(aes(y = conf.low, yend = conf.high), linewidth = .1) +
+  facet_wrap(~response) +
+  theme_bw() +
+  coord_flip() +
+  xlab("") + ylab("") +
+  scale_alpha_manual(values = c(0.2, 1)) +
+  theme(legend.position = "bottom")
+```
+
+```{r bio_reg_fig}
+#| message: false
+#| warning: false
+data |> 
+  select(-SR) |> 
+  gather(variable, value, -Country, -Ecosystem, -AGBi, -`∆AGB`) |> 
+  ggplot(aes(value, AGBi)) +
+  geom_point() +
+  facet_wrap(~ variable, scales = "free_x") +
+  theme_bw() +
+  geom_smooth(method = "lm", se = FALSE) +
+  xlab("")
+```
+
+```{r prod_reg_fig}
+#| message: false
+#| warning: false
+data |> 
+  select(-SR) |> 
+  gather(variable, value, -Country, -Ecosystem, -`∆AGB`) |> 
+  ggplot(aes(value, `∆AGB`)) +
+  geom_point() +
+  facet_wrap(~ variable, scales = "free_x") +
+  theme_bw() +
+  geom_smooth(method = "lm", se = FALSE) +
+  xlab("")
+```
+
+## 4 - Biomass ratio, niche complementarity, or green soup?
+
+We tested whether biomass and productivity were related to the CWM trait values of the dominant species in the system (the biomass ratio hypothesis), to the variety of functional trait values (the niche complementarity hypothesis), or in the case of biomass increments, simply to initial standing biomass (the green soup hypothesis). We little support for the niche complementarity hypothesis (Feve on productivity). We found no support for the green soup hypothesis. We have strong support for the biomass ratio hypothesis. CWM Hmax is a strong driver of ecosystem biomass and carbon storage and CWM WD, and other CWM leaf traits are especially important for productivity and carbon sequestration.
+
+# References

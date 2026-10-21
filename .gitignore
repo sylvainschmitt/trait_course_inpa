@@ -2,6 +2,8 @@
 !.gitignore
 !community.html
 !community.qmd
+!ecosystem.html
+!ecosystem.qmd
 !README.md
 !trait_course_inpa.Rproj
 !references.bib
