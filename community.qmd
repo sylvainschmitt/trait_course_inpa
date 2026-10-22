@@ -44,21 +44,22 @@ The database we will be using consists of 1,658 tree individuals with a DBH of b
 The "**traits for analysis.xlsx**" table contains data on the functional characteristics of the individuals. Each row in the table represents an individual, with their corresponding measurements. The ‘Plot’ column indicates which plot the individual belongs to. Light measurements above the canopy and total tree height (height) were taken for each plant and can be used to derive an average light measurement or height for the plot. For each individual, trait values are detailed below with code and unit:
 
 ```{r traits}
+#| echo: false
 tribble(
   ~Code, ~Unit, ~Name,
   "BarkDMC", NA, "branch dry matter content" ,
-  "BarkProp", 
+  "BarkProp", NA, NA,
   "BarkT", NA, "branch bark thickness",
   "BWD", "g/cm³", "branch wood density",
-  "FPs",
-  "LAR",
+  "FPs", NA, NA,
+  "LAR", NA, NA,
   "AFAX", NA, "the ratio of leaf area to xylem area",
   "LDMC", "mg/g", "leaf dry matter content ",
-  "LS",
+  "LS", NA, NA,
   "LT", "cm", "leaf thickness",
-  "PDMC",
+  "PDMC", NA, NA,
   "PP", NA, "branch core/pit proportion",
-  "SBL",
+  "SBL", NA, NA,
   "SLA", "m²/kg", "specific leaf area",
   "WD", NA, "wood density",
   "PX", NA, "branch xylem proportion"
@@ -216,7 +217,7 @@ cwm |>
 
 ## Linear regressions
 
-Finally, we performed linear regressions for each trait against two environmental variation variables, selected based on the co-variation of environmental variables: height above the nearest drainage (HAND) and phosphorus (P). We got 6 significant effects among 6 traits:
+Finally, we performed linear regressions for each trait against two environmental variation variables, selected based on the co-variation of environmental variables: height above the nearest drainage (HAND) and phosphorus (P). We got 6 significant effects:
 
 - BarkDMC increases with HAND
 - BarkProp increases with phosphorous
@@ -229,7 +230,7 @@ Figures and tables below are showing:
 
 1.  the standard effect sizes for all regressions,
 2.  summary tables for LT and WD (other could be chosen),
-3.  and traits responding to HAND.
+3.  and traits responding to HAND and P.
 
 ```{r reg_fig}
 #| message: false
@@ -338,7 +339,7 @@ cwv |>
 
 ## Linear regressions
 
-Finally, we performed linear regressions for each trait against two environmental variation variables, selected based on the co-variation of environmental variables: height above the nearest drainage (HAND) and phosphorus (P). We got 6 significant effects among 6 traits:
+Finally, we performed linear regressions for each trait against two environmental variation variables, selected based on the co-variation of environmental variables: height above the nearest drainage (HAND) and phosphorus (P). We got 2 significant effects:
 
 - BarkProp increases with HAND
 - PX decreases with P
@@ -347,7 +348,7 @@ Figures and tables below are showing:
 
 1.  the standard effect sizes for all regressions,
 2.  summary tables for LT and WD (other could be chosen),
-3.  and traits responding to HAND.
+3.  and traits responding to HAND and P.
 
 ```{r reg_fig_cwv}
 #| message: false
@@ -401,6 +402,173 @@ cwv |>
   facet_grid(trait ~ env, scales = "free") +
   geom_smooth(method = "lm", se = FALSE) +
   ylab("") + xlab("") +
+  theme(legend.position = "bottom")
+```
+
+# Analyses - SES
+
+We explored the variation in functional composition of communities according to local co-variates. We designed a null model that randomizes trait values among species, breaking the link between environment and local functional composition, while maintaining the spatial distribution of communities and species’ abundance. We derived 999 varying randomized CWM values and calculated the standardized effect sizes (SES) quantifying the deviation of observed values from the null distribution, as
+
+$$SES = \frac{CWM_{obs}-\overline{CWM_{null}}}{\sigma_{null}}$$
+
+where CWM~obs~ was the observed CWM, and $\overline{CWM_{null}}$ and $\sigma_{null}$ were the mean and standard deviation of the null distribution, respectively.
+
+## Abundances
+
+We need first to register species’ abundance per community:
+
+```{r ses_abund}
+#| message: false
+#| warning: false
+abund <- com |> 
+  group_by(Plot, Species) |> 
+  summarise(N = n()) |> 
+  group_by(Plot) |> 
+  mutate(Abundance = N/sum(N))
+abund |> 
+  select(-N) |> 
+  pivot_wider(names_from = Plot, values_from = Abundance) |> 
+  head() |> 
+  kable()
+```
+
+## Functional traits
+
+Then we need to build a trait x species table.
+
+```{r ses_ft}
+ft <- com |> 
+  select(-Tree, -Plot, -Height, -LightTree) |> 
+  group_by(Species) |> 
+  summarise_all(mean, na.rm = TRUE)
+ft |> 
+  head() |> 
+  kable()
+```
+
+## Randomization
+
+We randomize 999 times trait values among species, breaking the link between environment and local functional composition.
+
+```{r ses_ft_rand}
+ft_random <- ft |> 
+  mutate(Repetition = list(1:999), .before = Species) |> 
+  unnest(Repetition) |> 
+  arrange(Repetition, Species) |> 
+  group_by(Repetition) |> 
+  mutate(Species = sample(Species))
+ft_random |> 
+  filter(Species == "Abarema laeta") |> 
+  head() |> 
+  kable()
+```
+
+## Standardized Effect Sizes (SES)
+
+We need first to compute null CWM for each randomization and then their means and standard deviations.
+
+```{r ses_null_cwm}
+#| message: false
+#| warning: false
+cwm_null <- ft_random |> 
+  gather(Trait, Value, -Repetition, -Species) |> 
+  na.omit() |> 
+  left_join(abund) |> 
+  group_by(Repetition, Trait) |> 
+  summarise(CWMnull = weighted.mean(Value, Abundance)) |> 
+  group_by(Trait) |> 
+  summarise(CWMnull_sd = sd(CWMnull), CWMnull_mean = mean(CWMnull))
+cwm_null |>
+  head() |> 
+  kable()
+```
+
+Then we can use the formula to compute SES:
+
+```{r ses}
+#| message: false
+#| warning: false
+ses <- ft |> 
+  gather(Trait, Value, -Species) |> 
+  na.omit() |> 
+  left_join(abund) |> 
+  group_by(Trait, Plot) |> 
+  summarise(CWM = weighted.mean(Value, Abundance)) |> 
+  left_join(cwm_null) |> 
+  mutate(SES = (CWM - CWMnull_mean)/CWMnull_sd) |> 
+  select(Plot, Trait, SES) |> 
+  pivot_wider(names_from = Trait, values_from = SES)
+ses |> 
+  head() |> 
+  kable()
+```
+
+## Linear regressions
+
+Finally, we performed linear regressions for each trait against two environmental variation variables, selected based on the co-variation of environmental variables: height above the nearest drainage (HAND) and phosphorus (P). We got 6 significant effects among 6 traits:
+
+- AFAX decreases with HAND
+- BarkDMC increases with HAND
+- LDMC increases with HAND
+- LT decreases with HAND
+
+Figures and tables below are showing:
+
+1.  the standard effect sizes for all regressions,
+2.  summary tables for LT and WD (other could be chosen),
+3.  and traits responding to HAND and P.
+
+```{r reg_fig_ses}
+#| message: false
+#| warning: false
+all_reg <- ses |> 
+  gather(trait, trait_value, -Plot) |> 
+  left_join(env |> 
+              mutate(HAND = log(HAND)) |> 
+              mutate(across(Altitude:Sand, ~ as.numeric(scale(.x))))) |> 
+  group_by(trait) %>% 
+  nest() |> 
+  mutate(
+    model = map(data, ~ lm(trait_value ~ HAND + P, data = .x))
+  )
+all_reg |> 
+  mutate(coefs = map(model, ~broom::tidy(.x, conf.int = TRUE, conf.level = 0.90))) %>% 
+  unnest(coefs) |> 
+  select(-data, -model) |> 
+  filter(term != "(Intercept)") |> 
+  ggplot(aes(x = term, col = term, alpha = (p.value < 0.05))) +
+  geom_hline(yintercept = 0, col = "darkgrey") +
+  geom_point(aes(y = estimate)) +
+  geom_segment(aes(y = estimate - std.error, yend = estimate + std.error)) +
+  geom_segment(aes(y = conf.low, yend = conf.high), linewidth = .1) +
+  facet_wrap(~trait) +
+  theme_bw() +
+  coord_flip() +
+  xlab("") + ylab("") +
+  scale_alpha_manual(values = c(0.2, 1)) +
+  theme(legend.position = "bottom")
+```
+
+```{r reg_tab_ses}
+sjPlot::tab_model(filter(all_reg, trait %in% c("LT", "LDMC"))$model, 
+                  dv.labels = filter(all_reg, trait %in% c("LT", "LDMC"))$trait)
+```
+
+```{r reg_ex_ses}
+#| message: false
+#| warning: false
+ses |> 
+  gather(trait, trait_value, -Plot) |> 
+  left_join(env) |> 
+  gather(env, env_value, -Plot, -Habitat, -trait, -trait_value) |> 
+  filter(trait %in% c("AFAX", "BarkDMC", "LDMC", "LT"),
+         env == "HAND") |> 
+  ggplot(aes(env_value, trait_value)) +
+  geom_point(aes(col = Habitat)) +
+  theme_bw() +
+  facet_wrap(~ trait, scales = "free_y") +
+  geom_smooth(method = "lm", se = FALSE) +
+  ylab("") + xlab("HAND (m)") +
   theme(legend.position = "bottom")
 ```
 
