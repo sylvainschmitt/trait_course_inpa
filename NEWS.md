@@ -1,3 +1,4 @@
+- trait_course_inpa 0.1.9006: ecosystem lecture Lourens
 - trait_course_inpa 0.1.9005: community - SES
 - trait_course_inpa 0.1.9004: community - filtered traits and CWV
 - trait_course_inpa 0.1.9003: ecosystem analyses

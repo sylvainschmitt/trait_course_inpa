@@ -6,3 +6,7 @@ Links to the analyses:
 
 * [Community](https://sylvainschmitt.github.io/trait_course_inpa/community.html)
 * [Ecosystem](https://sylvainschmitt.github.io/trait_course_inpa/ecosystem.html)
+
+Lint to the lectures:
+
+* [Ecosystem](https://sylvainschmitt.github.io/trait_course_inpa/ecosystem_lecture/ecosysteml_lecture.html)
