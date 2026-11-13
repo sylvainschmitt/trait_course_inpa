@@ -9,4 +9,4 @@ Links to the analyses:
 
 Lint to the lectures:
 
-* [Ecosystem](https://sylvainschmitt.github.io/trait_course_inpa/ecosystem_lecture/ecosysteml_lecture.html)
+* [Ecosystem](https://sylvainschmitt.github.io/trait_course_inpa/ecosystem_lecture/ecosystem_lecture.html)
