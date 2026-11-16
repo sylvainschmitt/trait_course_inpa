@@ -1,3 +1,4 @@
+- trait_course_inpa 0.1.9009: switching back to pptx for the lecture
 - trait_course_inpa 0.1.9008: ecosystem lecture Lourens v3 \> Lack FD indices
 - trait_course_inpa 0.1.9007: ecosystem lecture Lourens v2 \> Lack FD indices
 - trait_course_inpa 0.1.9006: ecosystem lecture Lourens
